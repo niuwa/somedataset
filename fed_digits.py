@@ -69,23 +69,13 @@ def prepare_data(args):
     mnistm_testset      = data_utils.DigitsDataset(data_path='../data/MNIST_M/', channels=3, percent=args.percent,  train=False, transform=transform_mnistm)
 
     # TODO construct cross domain freqs of all domains here
-    cross_domain_freqs = [mnist_trainset.get_freqs(), svhn_trainset.get_freqs(), usps_trainset.get_freqs(), synth_trainset.get_freqs(), mnistm_trainset.get_freqs()]
     cross_domain_trainsets = [mnist_trainset, svhn_trainset, usps_trainset, synth_trainset, mnistm_trainset]
 
     # set cross domain freqs to each dataset
-    mnist_trainset.set_freqs(cross_domain_freqs)
     mnist_trainset.set_trainsets(cross_domain_trainsets)
-
-    svhn_trainset.set_freqs(cross_domain_freqs)
     svhn_trainset.set_trainsets(cross_domain_trainsets)
-
-    usps_trainset.set_freqs(cross_domain_freqs)
     usps_trainset.set_trainsets(cross_domain_trainsets)
-
-    synth_trainset.set_freqs(cross_domain_freqs)
     synth_trainset.set_trainsets(cross_domain_trainsets)
-
-    mnistm_trainset.set_freqs(cross_domain_freqs)
     mnistm_trainset.set_trainsets(cross_domain_trainsets)
 
     mnist_train_loader = torch.utils.data.DataLoader(mnist_trainset, batch_size=args.batch, shuffle=True)
