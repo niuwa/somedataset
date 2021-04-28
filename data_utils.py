@@ -21,6 +21,7 @@ def source_to_target_freq(src_img, amp_trg, L=0.1, ratio=0):
     amp_src, pha_src = np.abs(fft_src), np.angle(fft_src)
 
     # mutate the amplitude part of source with target
+
     amp_src_ = low_freq_mutate_np(amp_src, amp_trg, L, ratio)
 
     # mutated fft of source
@@ -37,13 +38,11 @@ def source_to_target_freq(src_img, amp_trg, L=0.1, ratio=0):
 # Add this function from FedDG
 # TODO assume input is (3, 28, 28)
 def low_freq_mutate_np(amp_src, amp_trg, L=0.1, ratio=0):
-    if amp_src.shape != amp_trg.shape:
-        raise ValueError("src shape {} and trg shape {} is not same.".format(amp_src.shape, amp_trg.shape))
 
     a_src = np.fft.fftshift(amp_src, axes=(-2, -1))
     a_trg = np.fft.fftshift(amp_trg, axes=(-2, -1))
 
-    h, w, _ = a_src.shape
+    _, h, w = a_src.shape
     b = (np.floor(np.amin((h, w)) * L)).astype(int)
     c_h = np.floor(h / 2.0).astype(int)
     c_w = np.floor(w / 2.0).astype(int)
@@ -53,7 +52,7 @@ def low_freq_mutate_np(amp_src, amp_trg, L=0.1, ratio=0):
     w1 = c_w - b
     w2 = c_w + b + 1
 
-    a_src[h1:h2, w1:w2, :] = a_src[h1:h2, w1:w2, :] * ratio + a_trg[h1:h2, w1:w2, :] * (1 - ratio)
+    a_src[:, h1:h2, w1:w2] = a_src[:, h1:h2, w1:w2] * ratio + a_trg[:, h1:h2, w1:w2] * (1 - ratio)
     a_src = np.fft.ifftshift(a_src, axes=(-2, -1))
     return a_src
 
@@ -63,7 +62,9 @@ digits_domain_list = ["MNIST", "MNIST_M", "SVHN", "SynthDigits", "USPS"]
 
 class DigitsDataset(Dataset):
     def extract_freqs_from_image(self, image): # assume input is PIL.Image of 28x28x3
-        image = np.asarray(image, np.float32) # convert to array
+        image = np.asarray(image) # convert to array
+        image = np.clip(image / 255, 0, 1).astype(np.float32) # convert to float [0, 1]
+
         image = image.transpose((2, 0, 1)) # transpose to 3x28x28
 
         fft_image = np.fft.fft2(image, axes=(-2, -1))
@@ -80,12 +81,9 @@ class DigitsDataset(Dataset):
         target_sample = target_images[target_index] # get image array
         target_sample = self.cross_domain_trainsets[target_domain].transform_image(target_sample) # input array, return transformed image
         target_sample = transforms.ToPILImage()(target_sample)  # convert to PIL.Image
-        target_sample = np.asarray(target_sample, np.float32)  # convert to array
 
         target_freq = self.extract_freqs_from_image(target_sample)
-
         image = source_to_target_freq(image, target_freq, L=0.1, ratio=0.5)
-        image = np.clip(image, 0, 255)
 
         return image
 
@@ -161,9 +159,13 @@ class DigitsDataset(Dataset):
 
         # TODO load a random freq here, and blend with image
         if self.is_train:  # only do this in training phase, not in test
-            image = transforms.ToPILImage()(image) # convert to PIL.Image
-            image = np.asarray(image, np.float32) # convert to array
+            image = transforms.ToPILImage()(image)  # convert to PIL.Image
+            image = np.asarray(image)  # convert to array
+            image = np.clip(image / 255, 0, 1).astype(np.float32)
+
             image = self.blend_with_cross_domain_freq(image) # input array, return array
+
+            image = np.clip(image * 255, 0, 255).astype(np.uint8)
             image = self.transform_image(image)
 
         return image, label

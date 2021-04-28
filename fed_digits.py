@@ -69,7 +69,7 @@ def prepare_data(args):
     mnistm_testset      = data_utils.DigitsDataset(data_path='../data/MNIST_M/', channels=3, percent=args.percent,  train=False, transform=transform_mnistm)
 
     # TODO construct cross domain freqs of all domains here
-    cross_domain_trainsets = [mnist_trainset, svhn_trainset, usps_trainset, synth_trainset, mnistm_trainset]
+    cross_domain_trainsets = [svhn_trainset, mnist_trainset, usps_trainset, synth_trainset, mnistm_trainset]
 
     # set cross domain freqs to each dataset
     mnist_trainset.set_trainsets(cross_domain_trainsets)
