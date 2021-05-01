@@ -8,11 +8,11 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 from PIL import Image
 import os
-
+import random
 
 # Add this function from FedDG
 # Assume inputs are 28x28x3 source, 3x28x28 amplitude
-def source_to_target_freq(src_img, amp_trg, L=0.1, ratio=0):
+def source_to_target_freq(src_img, amp_trg, L=0.01):
     src_img = src_img.transpose((2, 0, 1))
 
     fft_src = np.fft.fft2(src_img, axes=(-2, -1))
@@ -22,7 +22,7 @@ def source_to_target_freq(src_img, amp_trg, L=0.1, ratio=0):
 
     # mutate the amplitude part of source with target
 
-    amp_src_ = low_freq_mutate_np(amp_src, amp_trg, L, ratio)
+    amp_src_ = low_freq_mutate_np(amp_src, amp_trg, L)
 
     # mutated fft of source
     fft_src_ = amp_src_ * np.exp(1j * pha_src)
@@ -37,7 +37,7 @@ def source_to_target_freq(src_img, amp_trg, L=0.1, ratio=0):
 
 # Add this function from FedDG
 # TODO assume input is (3, 28, 28)
-def low_freq_mutate_np(amp_src, amp_trg, L=0.1, ratio=0):
+def low_freq_mutate_np(amp_src, amp_trg, L=0.01):
 
     a_src = np.fft.fftshift(amp_src, axes=(-2, -1))
     a_trg = np.fft.fftshift(amp_trg, axes=(-2, -1))
@@ -51,6 +51,8 @@ def low_freq_mutate_np(amp_src, amp_trg, L=0.1, ratio=0):
     h2 = c_h + b + 1
     w1 = c_w - b
     w2 = c_w + b + 1
+
+    ratio = random.randint(1, 10)/10
 
     a_src[:, h1:h2, w1:w2] = a_src[:, h1:h2, w1:w2] * ratio + a_trg[:, h1:h2, w1:w2] * (1 - ratio)
     a_src = np.fft.ifftshift(a_src, axes=(-2, -1))
@@ -83,7 +85,7 @@ class DigitsDataset(Dataset):
         target_sample = transforms.ToPILImage()(target_sample)  # convert to PIL.Image
 
         target_freq = self.extract_freqs_from_image(target_sample)
-        image = source_to_target_freq(image, target_freq, L=0.1, ratio=0.5)
+        image = source_to_target_freq(image, target_freq, L=0.01)
 
         return image
 
