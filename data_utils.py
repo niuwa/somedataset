@@ -224,6 +224,7 @@ class OfficeDataset(Dataset):
 
 class DomainNetDataset(Dataset):
     def __init__(self, base_path, site, train=True, transform=None):
+        self.is_train = train
         if train:
             self.paths, self.text_labels = np.load('../data/DomainNet/{}_train.pkl'.format(site), allow_pickle=True)
         else:
@@ -240,14 +241,66 @@ class DomainNetDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.base_path, self.paths[idx])
+        image = self.get_image(idx)
+
         label = self.labels[idx]
-        image = Image.open(img_path)
 
-        if len(image.split()) != 3:
-            image = transforms.Grayscale(num_output_channels=3)(image)
+        image = self.transform_image(image)
 
-        if self.transform is not None:
-            image = self.transform(image)
+        # TODO load a random freq here, and blend with image
+        if self.is_train:  # only do this in training phase, not in test
+            image = transforms.ToPILImage()(image)  # convert to PIL.Image
+            image = np.asarray(image)  # convert to array
+            image = np.clip(image / 255, 0, 1).astype(np.float32)
+
+            image = self.blend_with_cross_domain_freq(image) # input array, return array
+
+            image = np.clip(image * 255, 0, 255).astype(np.uint8)
+            image = transforms.ToPILImage()(image)  # convert to PIL.Image
+            image = self.transform_image(image)
 
         return image, label
+
+    def get_paths(self):
+        return self.paths
+
+    def get_image(self, idx):
+        img_path = os.path.join(self.base_path, self.paths[idx])
+        image = Image.open(img_path)
+        return image
+
+    def transform_image(self, image):
+        if len(image.split()) != 3:
+            image = transforms.Grayscale(num_output_channels=3)(image)
+        if self.transform is not None:
+            image = self.transform(image)
+        return image
+
+    def set_cross_domain_trainsets(self, cross_domain_trainsets):
+        self.cross_domain_trainsets = cross_domain_trainsets
+
+    def extract_freqs_from_image(self, image): # assume input is PIL.Image of 28x28x3
+        image = np.asarray(image) # convert to array
+        image = np.clip(image / 255, 0, 1).astype(np.float32) # convert to float [0, 1]
+
+        image = image.transpose((2, 0, 1)) # transpose to 3x28x28
+
+        fft_image = np.fft.fft2(image, axes=(-2, -1))
+        fft_abs, _ = np.abs(fft_image), np.angle(fft_image)
+
+        return fft_abs
+
+    def blend_with_cross_domain_freq(self, image):
+        number_of_domains = len(self.cross_domain_trainsets)
+        target_domain = np.random.choice(number_of_domains) # select domain
+        target_image_paths = self.cross_domain_trainsets[target_domain].get_paths() # get images
+
+        target_index = np.random.choice(len(target_image_paths)) # select index
+        target_sample = self.cross_domain_trainsets[target_domain].get_image(target_index) # get image array
+        target_sample = self.cross_domain_trainsets[target_domain].transform_image(target_sample) # input array, return transformed image
+        target_sample = transforms.ToPILImage()(target_sample)  # convert to PIL.Image
+
+        target_freq = self.extract_freqs_from_image(target_sample)
+        image = source_to_target_freq(image, target_freq, L=0.01)
+
+        return image
